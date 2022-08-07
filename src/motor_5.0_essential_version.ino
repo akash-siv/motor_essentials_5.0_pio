@@ -33,6 +33,8 @@
 #define plantrelay_2 18
 #define soilsensor 34 // Input Only
 #define DHT11_PIN 36  // Input Only
+#define voltage_threshold 190
+#define soil_threshold 50
 
 // rtc to pin 21 and 22 SDA and SCL
 
@@ -176,7 +178,7 @@ void loop()
 
 bool check_soil_moisture() // Function to check soil moisture
 {
-  if (analogRead(soilsensor) <= 50) // change the soil reading based on the environment
+  if (analogRead(soilsensor) <= soil_threshold) // change the soil reading based on the environment
     return true;
   else
     return false;
@@ -184,10 +186,8 @@ bool check_soil_moisture() // Function to check soil moisture
 
 bool check_voltage() // Function to check voltage value
 {
-  if (analogRead(voltage_sensor) >= 190) // change the voltage based on the environment
+  if (analogRead(voltage_sensor) >= voltage_threshold) // change the voltage based on the environment
     return true;
   else
     return false;
 }
-
-// TODO : convert the constant variabes like voltage sensor 190 to define statement.
