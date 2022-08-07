@@ -189,3 +189,5 @@ bool check_voltage() // Function to check voltage value
   else
     return false;
 }
+
+// TODO : convert the constant variabes like voltage sensor 190 to define statement.
