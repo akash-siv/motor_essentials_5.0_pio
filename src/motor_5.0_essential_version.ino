@@ -153,7 +153,6 @@ void loop()
   }
 
   // Turn on the plant irrigation_2 upto 6 clock at morning from 6 clock in evening.
-
   // Serial.println(now.hour());
   if (((now.hour() >= 18) || (now.hour() <= 7)) && (!plant_irrigation_1) && (!check_soil_moisture())) // time should be changed without interupting the recurring motor timer
   {
@@ -175,18 +174,17 @@ void loop()
   }
 }
 
-// Function to get temperature and humidity
-bool check_soil_moisture()
+bool check_soil_moisture() // Function to check soil moisture
 {
-  if (analogRead(soilsensor) <= 50)
+  if (analogRead(soilsensor) <= 50) // change the soil reading based on the environment
     return true;
   else
     return false;
 }
 
-bool check_voltage()
+bool check_voltage() // Function to check voltage value
 {
-  if (analogRead(voltage_sensor) >= 190)
+  if (analogRead(voltage_sensor) >= 190) // change the voltage based on the environment
     return true;
   else
     return false;
