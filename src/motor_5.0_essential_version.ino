@@ -134,11 +134,14 @@ void loop()
   // Dry Run Protection
   if ( (millis() < start_time+5000) && (var_motor_1 || var_motor_2) )
   {
+    if (digitalRead(dryrun))
+    {
       Serial.println("Dry Run Protection triggered");
       digitalWrite(motor_2, relayoff);
       motor_1_offstate();
       var_motor_1 = false;
       var_motor_2 = false;
+    }
   }
 
   // motor_2 off when sum level is low
