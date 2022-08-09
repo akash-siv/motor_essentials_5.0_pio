@@ -8,4 +8,4 @@
 * Features like Dry run, Recurring motor ON/OFF and Low voltage sensing can be easily turned on or off in the define statement, thus reducing the program memory.
 
 ### Preferred Board
-* ESP-32
+* ESP-32 (38 Pin NodeMCU 32s)
