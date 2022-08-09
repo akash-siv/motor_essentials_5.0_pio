@@ -4,6 +4,7 @@
  * 1 controll all the motors
  * 2 Dry run protection
  * 3 Recurring motor ON OFF
+ * 4 Low voltage protection
  *
  * IRRIGATION ............
  * 1 turn on drip irrigation system at specified time.
