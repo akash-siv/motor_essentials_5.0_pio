@@ -16,7 +16,7 @@
 #include <esp_task_wdt.h>
 
 // pin definitions ...........................................................
-#define WDT_TIMEOUT 5 // watchdog timer seconds.
+#define WDT_TIMEOUT 10 // watchdog timer seconds.
 #define relayoff HIGH
 #define relayon LOW
 #define dryrun 32
@@ -35,14 +35,16 @@
 #define DHT11_PIN 36  // Input Only
 #define voltage_threshold 190
 #define soil_threshold 50
-#define Dryrun_Enable 1 // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
+#define Dryrun_Enable 1          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
+#define voltage_sensing_enable 1 // 1 = Enable low voltage detection || 0 = Disable low voltage detection
+#define Recurring_on 1           // 1 = Recurring motor ON || 0 = Recurring motor OFF
 
 // rtc to pin 21 and 22 SDA and SCL
 
 uint8_t soil_moisture; // Stores Soil moisture data
 uint8_t voltage;       // Stores Voltage data
-#if Dryrun_Enable 
-  unsigned long start_time;
+#if Dryrun_Enable
+unsigned long start_time;
 #endif
 bool var_motor_1 = false;
 bool var_motor_2 = false;
@@ -58,9 +60,9 @@ void setup()
   Serial.println("Booting........");
 
   pinMode(sumplevel, INPUT_PULLUP);
-  #if Dryrun_Enable 
-    pinMode(dryrun, INPUT_PULLUP);
-  #endif
+#if Dryrun_Enable
+  pinMode(dryrun, INPUT_PULLUP);
+#endif
   pinMode(tankhigh, INPUT_PULLUP);
   pinMode(tanklow, INPUT_PULLUP);
   pinMode(motor_1_off, OUTPUT);
@@ -107,11 +109,11 @@ void loop()
     }
   }
 
-    // motor_2 OFF when sumplevel is low & motor_1 ON
-  if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false)  && (!voltage_low()))
+  // motor_2 OFF when sumplevel is low & motor_1 ON
+  if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (!voltage_low()))
   {
     delay(1000);
-    if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false)  && (!voltage_low()))
+    if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (!voltage_low()))
     {
       Serial.println("motor_2 OFF when sumplevel is low & motor_1 ON");
       digitalWrite(motor_2, relayoff);
@@ -160,6 +162,37 @@ void loop()
     var_motor_2 = false;
   }
 
+// motor_1 and motor_2 ON and OFF by RTC for 7 secs
+#if Recurring_on
+  if ((var_motor_1 == false) && (var_motor_2 == false))
+  {
+    if ((now.hour() == 04 && now.minute() == 00) || (now.hour() == 17 && now.minute() == 00)) // 4am and 5pm time should be changed based on the power fluctuation
+    {
+      esp_task_wdt_reset();
+      motor_1_onstate();
+      Serial.print("motor_1 ON by RTC");
+      delay(5000); // run the motor for 9 secs
+      motor_1_offstate();
+      Serial.print("motor_1 OFF by RTC");
+      esp_task_wdt_reset();
+      delay(5000); // wait for 9 sec
+      if (digitalRead(sumplevel) == HIGH)
+      {
+        delay(1000);
+        if (digitalRead(sumplevel) == HIGH)
+        {
+          esp_task_wdt_reset();
+          digitalWrite(motor_2, relayon);
+          Serial.print("motor_2 ON by RTC");
+          delay(5000); // run the motor for 9 secs
+          digitalWrite(motor_2, relayoff);
+          Serial.print("motor_2 OFF by RTC");
+        }
+      }
+    }
+  }
+#endif
+
   // Turn on the plant irrigation_2 upto 6 clock at morning from 6 clock in evening.
   // Serial.println(now.hour());
   if (((now.hour() >= 18) || (now.hour() <= 7)) && (!plant_irrigation) && (soil_moisture_low())) // time should be changed without interupting the recurring motor timer
@@ -174,7 +207,7 @@ void loop()
     digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
     plant_irrigation = false;
   }
-  else if (!soil_moisture_low()) //used to turn off the irrigation, after it is turned on. when it is Raining.
+  else if (!soil_moisture_low()) // used to turn off the irrigation, after it is turned on. when it is Raining.
   {
     Serial.println("Plant Irrigation Turned Off Due to Wet Soil");
     digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
@@ -185,18 +218,27 @@ void loop()
 bool soil_moisture_low() // Function to check soil moisture
 {
   if (analogRead(soilsensor) <= soil_threshold) // change the soil reading based on the environment
-    return true; // return true if soil moisture is low
+    return true;                                // return true if soil moisture is low
   else
     return false;
 }
 
 bool voltage_low() // Function to check voltage value
 {
-  if (analogRead(voltage_sensor) < voltage_threshold) // change the voltage based on the environment
-    return true; // return true when voltage is low
-  else
+  #if voltage_sensing_enable
+    if (analogRead(voltage_sensor) < voltage_threshold) // change the voltage based on the environment
+      return true;                                      // return true when voltage is low
+    else
+      return false;
+  #else
     return false;
+  #endif
 }
 
 // Todo : complete voltage mesurement
 // Todo : complete soil moisture mesurement
+// Todo : implement recurring motor ON/OFF
+
+// Testing.
+// * Motor on and off with sump and tank level
+// 
