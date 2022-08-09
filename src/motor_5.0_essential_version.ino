@@ -197,3 +197,6 @@ bool voltage_low() // Function to check voltage value
   else
     return false;
 }
+
+// Todo : complete voltage mesurement
+// Todo : complete soil moisture mesurement
