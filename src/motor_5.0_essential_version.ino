@@ -44,7 +44,7 @@ unsigned long start_time;
 
 bool var_motor_1 = false;
 bool var_motor_2 = false;
-bool plant_irrigation_1 = false;
+bool plant_irrigation = false;
 
 RTC_DS3231 rtc;
 
@@ -118,10 +118,10 @@ void loop()
   }
 
   // motor_2 OFF when sumplevel is low & motor_1 ON
-  if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false))
+  if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false)  && (!voltage_low()))
   {
     delay(1000);
-    if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false))
+    if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false)  && (!voltage_low()))
     {
       Serial.println("motor_2 OFF when sumplevel is low & motor_1 ON");
       digitalWrite(motor_2, relayoff);
@@ -156,27 +156,27 @@ void loop()
 
   // Turn on the plant irrigation_2 upto 6 clock at morning from 6 clock in evening.
   // Serial.println(now.hour());
-  if (((now.hour() >= 18) || (now.hour() <= 7)) && (!plant_irrigation_1) && (!check_soil_moisture())) // time should be changed without interupting the recurring motor timer
+  if (((now.hour() >= 18) || (now.hour() <= 7)) && (!plant_irrigation) && (soil_moisture_low())) // time should be changed without interupting the recurring motor timer
   {
     Serial.println("Plant Irrigation Turned On");
     digitalWrite(plantrelay_1, relayon); // turn on irrigation.
-    plant_irrigation_1 = true;
+    plant_irrigation = true;
   }
-  else if ((plant_irrigation_1) && (!((now.hour() >= 18) || (now.hour() <= 7))))
+  else if ((plant_irrigation) && (!((now.hour() >= 18) || (now.hour() <= 7))))
   {
     Serial.println("Plant Irrigation Turned Off");
     digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
-    plant_irrigation_1 = false;
+    plant_irrigation = false;
   }
-  else if (soil_moisture <= 50)
+  else if (!soil_moisture_low()) //used to turn off the irrigation, after it is turned on. when it is Raining.
   {
     Serial.println("Plant Irrigation Turned Off Due to Wet Soil");
     digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
-    plant_irrigation_1 = false;
+    plant_irrigation = false;
   }
 }
 
-bool check_soil_moisture() // Function to check soil moisture
+bool soil_moisture_low() // Function to check soil moisture
 {
   if (analogRead(soilsensor) <= soil_threshold) // change the soil reading based on the environment
     return true;
@@ -184,9 +184,9 @@ bool check_soil_moisture() // Function to check soil moisture
     return false;
 }
 
-bool check_voltage() // Function to check voltage value
+bool voltage_low() // Function to check voltage value
 {
-  if (analogRead(voltage_sensor) >= voltage_threshold) // change the voltage based on the environment
+  if (analogRead(voltage_sensor) < voltage_threshold) // change the voltage based on the environment
     return true;
   else
     return false;
