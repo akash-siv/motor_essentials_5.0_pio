@@ -35,13 +35,15 @@
 #define DHT11_PIN 36  // Input Only
 #define voltage_threshold 190
 #define soil_threshold 50
+#define Dryrun_Enable 1 // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
 
 // rtc to pin 21 and 22 SDA and SCL
 
 uint8_t soil_moisture; // Stores Soil moisture data
 uint8_t voltage;       // Stores Voltage data
-unsigned long start_time;
-
+#if Dryrun_Enable 
+  unsigned long start_time;
+#endif
 bool var_motor_1 = false;
 bool var_motor_2 = false;
 bool plant_irrigation = false;
@@ -56,7 +58,9 @@ void setup()
   Serial.println("Booting........");
 
   pinMode(sumplevel, INPUT_PULLUP);
-  pinMode(dryrun, INPUT_PULLUP);
+  #if Dryrun_Enable 
+    pinMode(dryrun, INPUT_PULLUP);
+  #endif
   pinMode(tankhigh, INPUT_PULLUP);
   pinMode(tanklow, INPUT_PULLUP);
   pinMode(motor_1_off, OUTPUT);
@@ -103,21 +107,7 @@ void loop()
     }
   }
 
-  // motor_2 & motor_1 OFF when tank fills
-  if ((digitalRead(tankhigh) == HIGH) && ((var_motor_2 == true) || (var_motor_1 == true)))
-  {
-    delay(1000);
-    if ((digitalRead(tankhigh) == HIGH) && ((var_motor_2 == true) || (var_motor_1 == true)))
-    {
-      Serial.println("motor_2 & motor_1 OFF when tank fills");
-      digitalWrite(motor_2, relayoff);
-      motor_1_offstate();
-      var_motor_1 = false;
-      var_motor_2 = false;
-    }
-  }
-
-  // motor_2 OFF when sumplevel is low & motor_1 ON
+    // motor_2 OFF when sumplevel is low & motor_1 ON
   if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false)  && (!voltage_low()))
   {
     delay(1000);
@@ -127,7 +117,9 @@ void loop()
       digitalWrite(motor_2, relayoff);
       delay(2000);
       motor_1_onstate();
-      start_time = millis();
+      #if Dryrun_Enable
+        start_time = millis();
+      #endif
       var_motor_2 = false;
       var_motor_1 = true;
     }
@@ -139,6 +131,20 @@ void loop()
     if (digitalRead(dryrun) == LOW)
     {
       Serial.println("Dry Run Protection triggered");
+      digitalWrite(motor_2, relayoff);
+      motor_1_offstate();
+      var_motor_1 = false;
+      var_motor_2 = false;
+    }
+  }
+
+  // motor_2 & motor_1 OFF when tank fills
+  if ((digitalRead(tankhigh) == HIGH) && ((var_motor_2 == true) || (var_motor_1 == true)))
+  {
+    delay(1000);
+    if ((digitalRead(tankhigh) == HIGH) && ((var_motor_2 == true) || (var_motor_1 == true)))
+    {
+      Serial.println("motor_2 & motor_1 OFF when tank fills");
       digitalWrite(motor_2, relayoff);
       motor_1_offstate();
       var_motor_1 = false;
@@ -179,7 +185,7 @@ void loop()
 bool soil_moisture_low() // Function to check soil moisture
 {
   if (analogRead(soilsensor) <= soil_threshold) // change the soil reading based on the environment
-    return true;
+    return true; // return true if soil moisture is low
   else
     return false;
 }
@@ -187,7 +193,7 @@ bool soil_moisture_low() // Function to check soil moisture
 bool voltage_low() // Function to check voltage value
 {
   if (analogRead(voltage_sensor) < voltage_threshold) // change the voltage based on the environment
-    return true;
+    return true; // return true when voltage is low
   else
     return false;
 }
