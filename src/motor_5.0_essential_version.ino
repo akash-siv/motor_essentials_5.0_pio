@@ -8,7 +8,7 @@
  *
  * IRRIGATION ............
  * 1 turn on drip irrigation system at specified time.
- * 2 controll the irrigation based on humidity and temperature.
+ * 2 controll the irrigation based on Soil Moisture.
  */
 // include statements ........................................................
 #include <Arduino.h>
