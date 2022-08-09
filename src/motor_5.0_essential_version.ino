@@ -60,9 +60,9 @@ void setup()
   Serial.println("Booting........");
 
   pinMode(sumplevel, INPUT_PULLUP);
-#if Dryrun_Enable
+  #if Dryrun_Enable
   pinMode(dryrun, INPUT_PULLUP);
-#endif
+  #endif
   pinMode(tankhigh, INPUT_PULLUP);
   pinMode(tanklow, INPUT_PULLUP);
   pinMode(motor_1_off, OUTPUT);
@@ -172,6 +172,7 @@ void loop()
       motor_1_onstate();
       Serial.print("motor_1 ON by RTC");
       delay(5000); // run the motor for 9 secs
+      esp_task_wdt_reset();
       motor_1_offstate();
       Serial.print("motor_1 OFF by RTC");
       esp_task_wdt_reset();
@@ -240,5 +241,7 @@ bool voltage_low() // Function to check voltage value
 // Todo : implement recurring motor ON/OFF
 
 // Testing.
-// * Motor on and off with sump and tank level
-// 
+// * Motor on and off with sump and tank level --- OK
+// * Recurring Motor on and off --- yet to check
+// * Plant irrigation --- yet to check
+// * Dryrun protection --- yet to check
