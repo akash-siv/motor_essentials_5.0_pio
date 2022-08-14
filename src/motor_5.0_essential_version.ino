@@ -37,11 +37,10 @@
 #define DHT11_PIN 36  // Input Only
 #define voltage_threshold 190
 #define soil_threshold 50
-#define Dryrun_Enable 1          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
+#define Dryrun_Enable 0          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
 #define voltage_sensing_enable 1 // 1 = Enable low voltage detection || 0 = Disable low voltage detection
-#define Recurring_on 1           // 1 = Recurring motor ON || 0 = Recurring motor OFF
+#define Recurring_on 0           // 1 = Recurring motor ON || 0 = Recurring motor OFF
 
-// rtc to pin 21 and 22 SDA and SCL
 
 #if Dryrun_Enable
 unsigned long start_time;
@@ -67,7 +66,7 @@ void setup()
   pinMode(dryrun, INPUT_PULLUP);
   #endif
   #if voltage_sensing_enable
-  emon1.voltage(voltage_sensor, 150.8, 1.7);
+  emon1.voltage(voltage_sensor, 130, 1.7);
   #endif
   pinMode(tankhigh, INPUT_PULLUP);
   pinMode(tanklow, INPUT_PULLUP);
@@ -99,6 +98,12 @@ void loop()
   esp_task_wdt_reset();
   DateTime now = rtc.now();
 
+  #if voltage_sensing_enable
+    emon1.calcVI(20,2000);                // Calculate all. No.of half wavelengths (crossings), time-out  
+    // float supplyVoltage = emon1.Vrms;     //extract Vrms into Variable
+    // Serial.println(emon1.Vrms);
+  #endif
+
   // motor_2 ON when sump level is high
   if ((digitalRead(tanklow) == LOW) && (digitalRead(sumplevel) == HIGH) && (var_motor_2 == false))
   {
@@ -109,7 +114,9 @@ void loop()
       motor_1_offstate();
       delay(1000);
       digitalWrite(motor_2, relayon);
-      start_time = millis();
+      #if Dryrun_Enable
+        start_time = millis();
+      #endif
       var_motor_2 = true;
       var_motor_1 = false;
     }
@@ -134,6 +141,7 @@ void loop()
   }
 
   // Dry Run Protection
+#if Dryrun_Enable
   if ((millis() < start_time + 5000) && (var_motor_1 || var_motor_2))
   {
     if (digitalRead(dryrun) == LOW)
@@ -145,6 +153,7 @@ void loop()
       var_motor_2 = false;
     }
   }
+#endif
 
   // motor_2 & motor_1 OFF when tank fills
   if ((digitalRead(tankhigh) == HIGH) && ((var_motor_2 == true) || (var_motor_1 == true)))
@@ -233,7 +242,7 @@ bool soil_moisture_low() // Function to check soil moisture
 bool voltage_low() // Function to check voltage value
 {
   #if voltage_sensing_enable
-    emon1.calcVI(20,2000);
+    // emon1.calcVI(20,2000);
     if (emon1.Vrms < voltage_threshold) // change the voltage based on the environment
       return true;                      // return true when voltage is low
     else
