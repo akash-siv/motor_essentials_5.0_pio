@@ -40,6 +40,8 @@
 #define Dryrun_Enable 0          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
 #define voltage_sensing_enable 1 // 1 = Enable low voltage detection || 0 = Disable low voltage detection
 #define Recurring_on 0           // 1 = Recurring motor ON || 0 = Recurring motor OFF
+#define irrigation_enable 1      // 1 = Plant irrigation On || 0 = Plant irrigation OFF
+#define moisture_sensor_enable 1 // 1 = Enable soil moisture sensor || 0 = Disable soil moisture sensor
 
 
 #if Dryrun_Enable
@@ -209,6 +211,7 @@ void loop()
   }
 #endif
 
+#if irrigation_enable
   // Turn on the plant irrigation_2 upto 6 clock at morning from 6 clock in evening.
   // Serial.println(now.hour());
   if (((now.hour() >= 18) || (now.hour() <= 7)) && (!plant_irrigation) && (soil_moisture_low())) // time should be changed without interupting the recurring motor timer
@@ -229,14 +232,20 @@ void loop()
     digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
     plant_irrigation = false;
   }
+
+#endif
 }
 
 bool soil_moisture_low() // Function to check soil moisture
 {
-  if (analogRead(soilsensor) <= soil_threshold) // change the soil reading based on the environment
+  #if moisture_sensor_enable
+  if (analogRead(soilsensor) < soil_threshold) // change the soil reading based on the environment
     return true;                                // return true if soil moisture is low
   else
     return false;
+  #else
+    return false
+  #endif
 }
 
 bool voltage_low() // Function to check voltage value
