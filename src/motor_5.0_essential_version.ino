@@ -15,6 +15,7 @@
 #include "lib.h"
 #include <RTClib.h>
 #include <esp_task_wdt.h>
+#include "EmonLib.h"
 
 // pin definitions ...........................................................
 #define WDT_TIMEOUT 10 // watchdog timer seconds.
@@ -27,8 +28,8 @@
 #define motor_1_on 27     // submersible motor on trigger
 #define motor_1_off 13    // submersible motor off trigger
 #define motor_2 14        // small motor
-#define voltage_sensor 39 // Input Only
-#define current_sensor 35 // Input Only
+#define voltage_sensor 35 // Input Only
+#define current_sensor 39 // Input Only
 #define debug_led 2       // for debugging purpose
 #define plantrelay_1 19
 #define plantrelay_2 18
@@ -42,10 +43,11 @@
 
 // rtc to pin 21 and 22 SDA and SCL
 
-uint8_t soil_moisture; // Stores Soil moisture data
-uint8_t voltage;       // Stores Voltage data
 #if Dryrun_Enable
 unsigned long start_time;
+#endif
+#if voltage_sensing_enable
+EnergyMonitor emon1;
 #endif
 bool var_motor_1 = false;
 bool var_motor_2 = false;
@@ -63,6 +65,9 @@ void setup()
   pinMode(sumplevel, INPUT_PULLUP);
   #if Dryrun_Enable
   pinMode(dryrun, INPUT_PULLUP);
+  #endif
+  #if voltage_sensing_enable
+  emon1.voltage(voltage_sensor, 150.8, 1.7);
   #endif
   pinMode(tankhigh, INPUT_PULLUP);
   pinMode(tanklow, INPUT_PULLUP);
@@ -228,8 +233,9 @@ bool soil_moisture_low() // Function to check soil moisture
 bool voltage_low() // Function to check voltage value
 {
   #if voltage_sensing_enable
-    if (analogRead(voltage_sensor) < voltage_threshold) // change the voltage based on the environment
-      return true;                                      // return true when voltage is low
+    emon1.calcVI(20,2000);
+    if (emon1.Vrms < voltage_threshold) // change the voltage based on the environment
+      return true;                      // return true when voltage is low
     else
       return false;
   #else
