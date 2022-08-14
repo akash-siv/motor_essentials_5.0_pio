@@ -37,9 +37,9 @@
 #define DHT11_PIN 36  // Input Only
 #define voltage_threshold 190
 #define soil_threshold 50
-#define Dryrun_Enable 0          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
+#define Dryrun_Enable 1          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
 #define voltage_sensing_enable 1 // 1 = Enable low voltage detection || 0 = Disable low voltage detection
-#define Recurring_on 0           // 1 = Recurring motor ON || 0 = Recurring motor OFF
+#define Recurring_on 1           // 1 = Recurring motor ON || 0 = Recurring motor OFF
 #define irrigation_enable 1      // 1 = Plant irrigation On || 0 = Plant irrigation OFF
 #define moisture_sensor_enable 1 // 1 = Enable soil moisture sensor || 0 = Disable soil moisture sensor
 
@@ -50,9 +50,14 @@ unsigned long start_time;
 #if voltage_sensing_enable
 EnergyMonitor emon1;
 #endif
+
 bool var_motor_1 = false;
 bool var_motor_2 = false;
 bool plant_irrigation = false;
+bool isdelay = false;
+
+unsigned long currenttime = 0; //used to turn off the motor after specified time
+unsigned long lock_ontime = 0; // lock the motor until Resting period
 
 RTC_DS3231 rtc;
 
@@ -125,10 +130,10 @@ void loop()
   }
 
   // motor_2 OFF when sumplevel is low & motor_1 ON
-  if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (!voltage_low()))
+  if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (!voltage_low()) && (!isdelay))
   {
     delay(1000);
-    if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (!voltage_low()))
+    if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (!voltage_low()) && (!isdelay))
     {
       Serial.println("motor_2 OFF when sumplevel is low & motor_1 ON");
       digitalWrite(motor_2, relayoff);
@@ -144,6 +149,7 @@ void loop()
 
   // Dry Run Protection
 #if Dryrun_Enable
+  currenttime = now.unixtime();
   if ((millis() < start_time + 5000) && (var_motor_1 || var_motor_2))
   {
     if (digitalRead(dryrun) == LOW)
@@ -153,7 +159,14 @@ void loop()
       motor_1_offstate();
       var_motor_1 = false;
       var_motor_2 = false;
+      isdelay = true;
+      lock_ontime = now.unixtime();
     }
+  }
+  if ((isdelay) && (currenttime - lock_ontime >= 300))
+  {
+    isdelay = false;
+    Serial.println("isdelay made to false");
   }
 #endif
 
@@ -232,7 +245,6 @@ void loop()
     digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
     plant_irrigation = false;
   }
-
 #endif
 }
 
@@ -244,14 +256,13 @@ bool soil_moisture_low() // Function to check soil moisture
   else
     return false;
   #else
-    return false
+    return true
   #endif
 }
 
 bool voltage_low() // Function to check voltage value
 {
   #if voltage_sensing_enable
-    // emon1.calcVI(20,2000);
     if (emon1.Vrms < voltage_threshold) // change the voltage based on the environment
       return true;                      // return true when voltage is low
     else

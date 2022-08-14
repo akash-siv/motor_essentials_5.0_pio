@@ -5,7 +5,7 @@
 * Soil moisture sensor is placed in an area thus it only read the moisture with respect to rain.
 
 ## Features
-* Features like Dry run, Recurring motor ON/OFF and Low voltage sensing can be easily turned on or off in the define statement, thus reducing the program memory.
+* Features like Dry run, Recurring motor ON/OFF, Low voltage sensing and plant irrigation can be easily turned on or off in the define statement, thus reducing the program memory.
 
 ## Preferred Board
 * ESP-32 (38 Pin NodeMCU 32s)
