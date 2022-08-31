@@ -237,7 +237,7 @@ void loop()
   {
     Serial.println("Plant Irrigation Turned Off");
     digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
-    plant_irrigation = false;soil_moisture_low
+    plant_irrigation = false;
   }
   else if (!soil_moisture_low()) // used to turn off the irrigation, after it is turned on. when it is Raining.
   {
