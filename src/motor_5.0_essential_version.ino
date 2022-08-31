@@ -33,8 +33,8 @@
 #define debug_led 2       // for debugging purpose
 #define plantrelay_1 19
 #define plantrelay_2 18
-#define soilsensor 34 // Input Only
-#define DHT11_PIN 36  // Input Only
+#define soilsensor 36 // Input Only  working only on 36 and 39 pin 
+#define DHT11_PIN 34  // Input Only
 #define voltage_threshold 190
 #define soil_threshold 50
 #define Dryrun_Enable 1          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
@@ -237,7 +237,7 @@ void loop()
   {
     Serial.println("Plant Irrigation Turned Off");
     digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
-    plant_irrigation = false;
+    plant_irrigation = false;soil_moisture_low
   }
   else if (!soil_moisture_low()) // used to turn off the irrigation, after it is turned on. when it is Raining.
   {
@@ -251,7 +251,7 @@ void loop()
 bool soil_moisture_low() // Function to check soil moisture
 {
   #if moisture_sensor_enable
-  if (analogRead(soilsensor) < soil_threshold) // change the soil reading based on the environment
+  if (analogRead(soilsensor) > soil_threshold) // change the soil reading based on the environment
     return true;                                // return true if soil moisture is low
   else
     return false;
@@ -278,6 +278,8 @@ bool voltage_low() // Function to check voltage value
 
 // Testing.
 // * Motor on and off with sump and tank level --- OK
+// * Low Voltage Protection --- yet to check
 // * Recurring Motor on and off --- yet to check
 // * Plant irrigation --- yet to check
+// * Plant irrigation with moisture sensor --- yet to check
 // * Dryrun protection --- yet to check
