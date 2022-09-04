@@ -42,7 +42,7 @@
 #define Dryrun_Enable 0          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
 #define voltage_sensing_enable 0 // 1 = Enable low voltage detection || 0 = Disable low voltage detection
 #define Recurring_on 0           // 1 = Recurring motor ON || 0 = Recurring motor OFF
-#define irrigation_enable 0      // 1 = Plant irrigation On || 0 = Plant irrigation OFF
+#define irrigation_enable 1      // 1 = Plant irrigation On || 0 = Plant irrigation OFF
 #define moisture_sensor_enable 0 // 1 = Enable soil moisture sensor || 0 = Disable soil moisture sensor
 
 
@@ -117,6 +117,7 @@ void loop()
   esp_task_wdt_reset();
   DateTime now = rtc.now();
 
+  // Print Time
   // Serial.print(now.hour());Serial.print(":");Serial.println(now.minute());
 
   #if voltage_sensing_enable
@@ -286,6 +287,6 @@ bool soil_moisture_low() // Function to check soil moisture
 // * Motor on and off with sump and tank level --- OK
 // * Low Voltage Protection --- OK
 // * Recurring Motor on and off --- OK
-// * Plant irrigation --- yet to check
+// * Plant irrigation --- OK
 // * Plant irrigation with moisture sensor --- yet to check
 // * Dryrun protection --- yet to check
