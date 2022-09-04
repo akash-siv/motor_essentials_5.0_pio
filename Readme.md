@@ -24,15 +24,36 @@ Vcc -- 3.3v
 
 Gnd -- Gnd
 
-SDA -- GPIO 21
+SDA -- GPIO 21 SDA
 
-SCL -- GPIO 22
+SCL -- GPIO 22 SCL
 
 ### Soil Sensor
-Vcc -- 
+Vcc -- 5v
 
 Gnd -- Gnd
 
-Out -- 
+Out -- 36
 
+### Relay Wiring
+JDVcc -- 5v
+
+Gnd -- Gnd
+
+Motor 1 ON -- 27
+
+Motor 1 OFF -- 13
+
+Motor 2 -- 14
+
+Plant Relay 1 -- 19
+
+Plant Relay 2 -- 18
+
+### Dry Run
+Vcc -- 3.3v
+
+Gnd -- Gnd
+
+Out -- 32
 

@@ -29,19 +29,21 @@
 #define motor_1_off 13    // submersible motor off trigger
 #define motor_2 14        // small motor
 #define voltage_sensor 35 // Input Only
-#define current_sensor 39 // Input Only
+// #define current_sensor 39 // Input Only
 #define debug_led 2       // for debugging purpose
 #define plantrelay_1 19
 #define plantrelay_2 18
 #define soilsensor 36 // Input Only  working only on 36 and 39 pin 
-#define DHT11_PIN 34  // Input Only
+// #define DHT11_PIN 34  // Input Only
 #define voltage_threshold 190
 #define soil_threshold 50
-#define Dryrun_Enable 1          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
-#define voltage_sensing_enable 1 // 1 = Enable low voltage detection || 0 = Disable low voltage detection
+
+// Features .....................
+#define Dryrun_Enable 0          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
+#define voltage_sensing_enable 0 // 1 = Enable low voltage detection || 0 = Disable low voltage detection
 #define Recurring_on 1           // 1 = Recurring motor ON || 0 = Recurring motor OFF
-#define irrigation_enable 1      // 1 = Plant irrigation On || 0 = Plant irrigation OFF
-#define moisture_sensor_enable 1 // 1 = Enable soil moisture sensor || 0 = Disable soil moisture sensor
+#define irrigation_enable 0      // 1 = Plant irrigation On || 0 = Plant irrigation OFF
+#define moisture_sensor_enable 0 // 1 = Enable soil moisture sensor || 0 = Disable soil moisture sensor
 
 
 #if Dryrun_Enable
@@ -66,7 +68,7 @@ void setup()
 
   Serial.begin(115200);
   delay(1000);
-  Serial.println("Booting........");
+  Serial.println("\nBooting........\n");
 
   pinMode(sumplevel, INPUT_PULLUP);
   #if Dryrun_Enable
@@ -93,7 +95,7 @@ void setup()
   {
     Serial.println("RTC is NOT running!");
   }
-  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //Used to update RTC module time.
 
   esp_task_wdt_init(WDT_TIMEOUT, true); // enable panic so ESP32 restarts
   esp_task_wdt_add(NULL);
@@ -104,6 +106,8 @@ void loop()
   // Reset the the timer or the controller will get reset
   esp_task_wdt_reset();
   DateTime now = rtc.now();
+
+  Serial.print(now.hour());Serial.print(":");Serial.println(now.minute());
 
   #if voltage_sensing_enable
     emon1.calcVI(20,2000);                // Calculate all. No.of half wavelengths (crossings), time-out  
@@ -148,27 +152,27 @@ void loop()
   }
 
   // Dry Run Protection
-#if Dryrun_Enable
-  currenttime = now.unixtime();
-  if ((millis() < start_time + 5000) && (var_motor_1 || var_motor_2))
-  {
-    if (digitalRead(dryrun) == LOW)
+  #if Dryrun_Enable
+    currenttime = now.unixtime();
+    if ((millis() < start_time + 5000) && (var_motor_1 || var_motor_2))
     {
-      Serial.println("Dry Run Protection triggered");
-      digitalWrite(motor_2, relayoff);
-      motor_1_offstate();
-      var_motor_1 = false;
-      var_motor_2 = false;
-      isdelay = true;
-      lock_ontime = now.unixtime();
+      if (digitalRead(dryrun) == LOW)
+      {
+        Serial.println("Dry Run Protection triggered");
+        digitalWrite(motor_2, relayoff);
+        motor_1_offstate();
+        var_motor_1 = false;
+        var_motor_2 = false;
+        isdelay = true;
+        lock_ontime = now.unixtime();
+      }
     }
-  }
-  if ((isdelay) && (currenttime - lock_ontime >= 300))
-  {
-    isdelay = false;
-    Serial.println("isdelay made to false");
-  }
-#endif
+    if ((isdelay) && (currenttime - lock_ontime >= 300))
+    {
+      isdelay = false;
+      Serial.println("isdelay made to false");
+    }
+  #endif
 
   // motor_2 & motor_1 OFF when tank fills
   if ((digitalRead(tankhigh) == HIGH) && ((var_motor_2 == true) || (var_motor_1 == true)))
@@ -192,60 +196,61 @@ void loop()
     var_motor_2 = false;
   }
 
-// motor_1 and motor_2 ON and OFF by RTC for 7 secs
-#if Recurring_on
-  if ((var_motor_1 == false) && (var_motor_2 == false))
-  {
-    if ((now.hour() == 04 && now.minute() == 00) || (now.hour() == 17 && now.minute() == 00)) // 4am and 5pm time should be changed based on the power fluctuation
+  // motor_1 and motor_2 ON and OFF by RTC for 7 secs
+  #if Recurring_on
+    if ((var_motor_1 == false) && (var_motor_2 == false))
     {
-      esp_task_wdt_reset();
-      motor_1_onstate();
-      Serial.print("motor_1 ON by RTC");
-      delay(5000); // run the motor for 9 secs
-      esp_task_wdt_reset();
-      motor_1_offstate();
-      Serial.print("motor_1 OFF by RTC");
-      esp_task_wdt_reset();
-      delay(5000); // wait for 9 sec
-      if (digitalRead(sumplevel) == HIGH)
+      if ((now.hour() == 04 && now.minute() == 00 && now.second() > 50) || (now.hour() == 17 && now.minute() == 33 && now.second() > 50)) // 4am and 5pm time should be changed based on the power fluctuation
       {
-        delay(1000);
+        esp_task_wdt_reset();
+        motor_1_onstate();
+        Serial.println("motor_1 ON by RTC");
+        delay(7000); // run the motor for 7 secs
+        esp_task_wdt_reset();
+        motor_1_offstate();
+        Serial.println("motor_1 OFF by RTC");
+        esp_task_wdt_reset();
+        delay(8000); // wait for 8 sec
         if (digitalRead(sumplevel) == HIGH)
         {
-          esp_task_wdt_reset();
-          digitalWrite(motor_2, relayon);
-          Serial.print("motor_2 ON by RTC");
-          delay(5000); // run the motor for 9 secs
-          digitalWrite(motor_2, relayoff);
-          Serial.print("motor_2 OFF by RTC");
+          delay(1000);
+          if (digitalRead(sumplevel) == HIGH)
+          {
+            esp_task_wdt_reset();
+            digitalWrite(motor_2, relayon);
+            Serial.println("motor_2 ON by RTC");
+            delay(7000); // run the motor for 7 secs
+            digitalWrite(motor_2, relayoff);
+            Serial.println("motor_2 OFF by RTC");
+          }
         }
       }
     }
-  }
-#endif
+  #endif
 
-#if irrigation_enable
-  // Turn on the plant irrigation_2 upto 6 clock at morning from 6 clock in evening.
-  // Serial.println(now.hour());
-  if (((now.hour() >= 18) || (now.hour() <= 7)) && (!plant_irrigation) && (soil_moisture_low())) // time should be changed without interupting the recurring motor timer
-  {
-    Serial.println("Plant Irrigation Turned On");
-    digitalWrite(plantrelay_1, relayon); // turn on irrigation.
-    plant_irrigation = true;
-  }
-  else if ((plant_irrigation) && (!((now.hour() >= 18) || (now.hour() <= 7))))
-  {
-    Serial.println("Plant Irrigation Turned Off");
-    digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
-    plant_irrigation = false;
-  }
-  else if (!soil_moisture_low()) // used to turn off the irrigation, after it is turned on. when it is Raining.
-  {
-    Serial.println("Plant Irrigation Turned Off Due to Wet Soil");
-    digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
-    plant_irrigation = false;
-  }
-#endif
+  #if irrigation_enable
+    // Turn on the plant irrigation_2 upto 6 clock at morning from 6 clock in evening.
+    // Serial.println(now.hour());
+    if (((now.hour() >= 18) || (now.hour() <= 7)) && (!plant_irrigation) && (soil_moisture_low())) // time should be changed without interupting the recurring motor timer
+    {
+      Serial.println("Plant Irrigation Turned On");
+      digitalWrite(plantrelay_1, relayon); // turn on irrigation.
+      plant_irrigation = true;
+    }
+    else if ((plant_irrigation) && (!((now.hour() >= 18) || (now.hour() <= 7))))
+    {
+      Serial.println("Plant Irrigation Turned Off");
+      digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
+      plant_irrigation = false;
+    }
+    else if (!soil_moisture_low()) // used to turn off the irrigation, after it is turned on. when it is Raining.
+    {
+      Serial.println("Plant Irrigation Turned Off Due to Wet Soil");
+      digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
+      plant_irrigation = false;
+    }
+  #endif
+  delay(1000);
 }
 
 bool soil_moisture_low() // Function to check soil moisture
@@ -256,7 +261,7 @@ bool soil_moisture_low() // Function to check soil moisture
   else
     return false;
   #else
-    return true
+    return true;
   #endif
 }
 
@@ -279,7 +284,7 @@ bool voltage_low() // Function to check voltage value
 // Testing.
 // * Motor on and off with sump and tank level --- OK
 // * Low Voltage Protection --- yet to check
-// * Recurring Motor on and off --- yet to check
+// * Recurring Motor on and off --- OK
 // * Plant irrigation --- yet to check
 // * Plant irrigation with moisture sensor --- yet to check
 // * Dryrun protection --- yet to check
