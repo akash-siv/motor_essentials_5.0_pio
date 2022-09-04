@@ -41,7 +41,7 @@
 // Features .....................
 #define Dryrun_Enable 0          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
 #define voltage_sensing_enable 0 // 1 = Enable low voltage detection || 0 = Disable low voltage detection
-#define Recurring_on 1           // 1 = Recurring motor ON || 0 = Recurring motor OFF
+#define Recurring_on 0           // 1 = Recurring motor ON || 0 = Recurring motor OFF
 #define irrigation_enable 0      // 1 = Plant irrigation On || 0 = Plant irrigation OFF
 #define moisture_sensor_enable 0 // 1 = Enable soil moisture sensor || 0 = Disable soil moisture sensor
 
@@ -76,6 +76,16 @@ void setup()
   #endif
   #if voltage_sensing_enable
   emon1.voltage(voltage_sensor, 130, 1.7);
+  int8_t count = 5;
+  while(count > 0 )          // repeat until count is no longer greater than zero
+  {
+    emon1.calcVI(20,2000);              // Calculate all. No.of half wavelengths (crossings), time-out  
+    float supplyVoltage = emon1.Vrms;
+    count = count -1;                   // decrement count
+    delay(1000);
+  }
+  #else
+  float supplyVoltage = 230;
   #endif
   pinMode(tankhigh, INPUT_PULLUP);
   pinMode(tanklow, INPUT_PULLUP);
@@ -107,19 +117,21 @@ void loop()
   esp_task_wdt_reset();
   DateTime now = rtc.now();
 
-  Serial.print(now.hour());Serial.print(":");Serial.println(now.minute());
+  // Serial.print(now.hour());Serial.print(":");Serial.println(now.minute());
 
   #if voltage_sensing_enable
     emon1.calcVI(20,2000);                // Calculate all. No.of half wavelengths (crossings), time-out  
-    // float supplyVoltage = emon1.Vrms;     //extract Vrms into Variable
-    // Serial.println(emon1.Vrms);
+    float supplyVoltage = emon1.Vrms;     //extract Vrms into Variable
+    Serial.println(emon1.Vrms);
+  #else
+    float supplyVoltage = 230;
   #endif
 
   // motor_2 ON when sump level is high
-  if ((digitalRead(tanklow) == LOW) && (digitalRead(sumplevel) == HIGH) && (var_motor_2 == false))
+  if ((digitalRead(tanklow) == LOW) && (digitalRead(sumplevel) == HIGH) && (var_motor_2 == false) && (supplyVoltage > voltage_threshold) && (!isdelay))
   {
     delay(1000);
-    if ((digitalRead(tanklow) == LOW) && (digitalRead(sumplevel) == HIGH) && (var_motor_2 == false))
+    if ((digitalRead(tanklow) == LOW) && (digitalRead(sumplevel) == HIGH) && (var_motor_2 == false) && (supplyVoltage > voltage_threshold) && (!isdelay))
     {
       Serial.println("motor_2 ON when sump level is high");
       motor_1_offstate();
@@ -134,10 +146,10 @@ void loop()
   }
 
   // motor_2 OFF when sumplevel is low & motor_1 ON
-  if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (!voltage_low()) && (!isdelay))
+  if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (supplyVoltage > voltage_threshold) && (!isdelay))
   {
     delay(1000);
-    if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (!voltage_low()) && (!isdelay))
+    if ((digitalRead(sumplevel) == LOW) && (digitalRead(tanklow) == LOW) && (var_motor_1 == false) && (supplyVoltage > voltage_threshold) && (!isdelay))
     {
       Serial.println("motor_2 OFF when sumplevel is low & motor_1 ON");
       digitalWrite(motor_2, relayoff);
@@ -200,7 +212,7 @@ void loop()
   #if Recurring_on
     if ((var_motor_1 == false) && (var_motor_2 == false))
     {
-      if ((now.hour() == 04 && now.minute() == 00 && now.second() > 50) || (now.hour() == 17 && now.minute() == 33 && now.second() > 50)) // 4am and 5pm time should be changed based on the power fluctuation
+      if ( ((now.hour() == 04 && now.minute() == 00 && now.second() > 50) || (now.hour() == 21 && now.minute() == 20 && now.second() > 50)) && (supplyVoltage > voltage_threshold) )// 4am and 5pm time should be changed based on the power fluctuation
       {
         esp_task_wdt_reset();
         motor_1_onstate();
@@ -265,17 +277,6 @@ bool soil_moisture_low() // Function to check soil moisture
   #endif
 }
 
-bool voltage_low() // Function to check voltage value
-{
-  #if voltage_sensing_enable
-    if (emon1.Vrms < voltage_threshold) // change the voltage based on the environment
-      return true;                      // return true when voltage is low
-    else
-      return false;
-  #else
-    return false;
-  #endif
-}
 
 // Todo : complete voltage mesurement
 // Todo : complete soil moisture mesurement
@@ -283,7 +284,7 @@ bool voltage_low() // Function to check voltage value
 
 // Testing.
 // * Motor on and off with sump and tank level --- OK
-// * Low Voltage Protection --- yet to check
+// * Low Voltage Protection --- OK
 // * Recurring Motor on and off --- OK
 // * Plant irrigation --- yet to check
 // * Plant irrigation with moisture sensor --- yet to check
