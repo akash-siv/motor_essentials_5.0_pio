@@ -1,5 +1,8 @@
 # Instructions
 
+## Discription
+All in one water controller for your home or garden which can manage multiple motors and irrigate plants simultaneously. it also has many additional features.
+list of features are mentioned below. 
 ## Soil Moisture sensor.
 * Soil moisture sensor should not be placed near the plants or near irrigation lines of the plants.
 * Soil moisture sensor is placed in an area thus it only read the moisture with respect to rain.
