@@ -60,3 +60,13 @@ Gnd -- Gnd
 
 Out -- 32
 
+
+## BOM
+
+8 Channel Relay Module -- 1 Nos
+ESP32 (38 Pin NodeMCU 32s) -- 1 Nos
+RTC DS3231 -- 1 Nos
+ZMPT101B Voltage Sensor Module -- 1 Nos
+Capacitive Soil Moisture Sensor -- 1 Nos
+5V 2A DC Adaptor -- 1 Nos
+AMS 1117 module -- 1 Nos
