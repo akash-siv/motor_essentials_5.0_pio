@@ -279,9 +279,7 @@ bool soil_moisture_low() // Function to check soil moisture
 }
 
 
-// Todo : complete voltage mesurement
 // Todo : complete soil moisture mesurement
-// Todo : implement recurring motor ON/OFF
 
 // Testing.
 // * Motor on and off with sump and tank level --- OK
