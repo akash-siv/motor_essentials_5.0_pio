@@ -39,7 +39,7 @@ Gnd -- Gnd
 Out -- 36
 
 ### Relay Wiring
-JDVcc -- 5v
+Vcc -- 5v
 
 Gnd -- Gnd
 
