@@ -16,6 +16,37 @@
 #include <RTClib.h>
 #include <esp_task_wdt.h>
 #include "EmonLib.h"
+// for home assistance
+#include <WiFi.h>
+#include <PubSubClient.h>
+// #include <ArduinoJson.h>
+
+// WiFi Network Credentials
+const char *ssid = "goldenbriquette";   // name of your WiFi network
+const char *password = "9840782066"; // password of the WiFi network
+
+// Home Assistant Credentials
+const char *HA_USER = "akash";
+const char *HA_PASS = "*^7KNF!7fsSnPq";
+
+// -------------------   MQTT Network
+IPAddress broker(192,168,0,139); // IP address of your MQTT broker eg. 192.168.1.50
+const byte LIGHT_PIN = 2;           // Pin to control the light with
+const char *ID = "motor_core";  // Name of our device, must be unique
+const char *MOTOR1 = "home/motor1";  // Topic to subcribe to
+const char *STATE_MOTOR1 = "home/motor1/state";  // Topic to publish the light state to
+const char *MOTOR2 = "home/motor2";  // Topic to subcribe to
+const char *STATE_MOTOR2 = "home/motor2/state";  // Topic to publish the light state to
+const char *IRR_HOME = "home/irrigation";  // Topic to subcribe to
+const char *STATE_IRR_HOME = "home/irrigation/state";  // Topic to publish the light state to
+const char *IRR_GARDEN = "garden/irrigation";  // Topic to subcribe to
+const char *STATE_IRR_GARDEN = "garden/irrigation/state";  // Topic to publish the light state to
+
+WiFiClient wclient;
+PubSubClient client(wclient); // Setup MQTT client
+// -------------------   END MQTT Network
+
+
 
 // pin definitions ...........................................................
 #define WDT_TIMEOUT 10 // watchdog timer seconds.
@@ -31,8 +62,8 @@
 #define voltage_sensor 35 // Input Only
 // #define current_sensor 39 // Input Only
 #define debug_led 2       // for debugging purpose
-#define plantrelay_1 19
-#define plantrelay_2 18
+#define home_irrigation 19
+#define garden_irrigation 18
 #define soilsensor 36 // Input Only  working only on 36 and 39 pin 
 // #define DHT11_PIN 34  // Input Only
 #define voltage_threshold 190
@@ -63,12 +94,125 @@ unsigned long lock_ontime = 0; // lock the motor until Resting period
 
 RTC_DS3231 rtc;
 
+// Handle incomming messages from the broker
+void callback(char* topic, byte* payload, unsigned int length) 
+{
+  String response;
+
+  for (int i = 0; i < length; i++) {
+    response += (char)payload[i];
+  }
+  // Serial.print("Message arrived [");
+  // Serial.print(topic);
+  // Serial.print("] ");
+  // Serial.println(response);
+
+  if (String(topic) == String(MOTOR1)){
+    if(response == "on")  // Turn the Motor1 on
+      {
+        motor_1_onstate();
+        client.publish(STATE_MOTOR1,"on");
+      }
+    else if(response == "off")  // Turn the light off
+    {
+      motor_1_offstate();
+      client.publish(STATE_MOTOR1,"off");
+    }
+  }
+
+  if (String(topic) == String(MOTOR2)){
+    if(response == "on")  // Turn the Motor1 on
+      {
+        digitalWrite(motor_2, relayon);
+        client.publish(STATE_MOTOR2,"on");
+      }
+    else if(response == "off")  // Turn the light off
+    {
+      digitalWrite(motor_2, relayoff);
+      client.publish(STATE_MOTOR2,"off");
+    }
+  }
+
+  if (String(topic) == String(IRR_HOME)){
+    if(response == "on")  // Turn the Motor1 on
+      {
+        digitalWrite(home_irrigation, relayon); // turn on irrigation.
+        plant_irrigation = true;
+        client.publish(STATE_IRR_HOME,"on");
+      }
+    else if(response == "off")  // Turn the light off
+    {
+      digitalWrite(home_irrigation, relayoff); // turn on irrigation.
+        plant_irrigation = false;
+        client.publish(STATE_IRR_HOME,"off");
+    }
+  }
+
+  if (String(topic) == String(IRR_GARDEN)){
+    if(response == "on")  // Turn the Motor1 on
+      {
+        digitalWrite(garden_irrigation, relayon); // turn on irrigation.
+        plant_irrigation = true;
+        client.publish(STATE_IRR_GARDEN,"on");
+      }
+    else if(response == "off")  // Turn the light off
+    {
+      digitalWrite(garden_irrigation, relayoff); // turn on irrigation.
+        plant_irrigation = false;
+        client.publish(STATE_IRR_GARDEN,"off");
+    }
+  }
+  
+}
+// Connect to WiFi network
+void setup_wifi() 
+{
+  Serial.print("\nConnecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password); // Connect to network
+
+  while (WiFi.status() != WL_CONNECTED) { // Wait for connection
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.println("WiFi connected");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+// Reconnect to client
+void reconnect() 
+{
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if(client.connect(ID,HA_USER,HA_PASS)) {
+      client.subscribe(MOTOR1);
+      client.subscribe(MOTOR2);
+      client.subscribe(IRR_HOME);
+      client.subscribe(IRR_GARDEN);
+      Serial.println("connected");
+    }
+    else {
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
 void setup()
 {
 
   Serial.begin(115200);
-  delay(1000);
+  delay(5000);
   Serial.println("\nBooting........\n");
+  setup_wifi(); // Connect to network
+  client.setServer(broker, 1883);
+  client.setCallback(callback);// Initialize the callback routine
 
   pinMode(sumplevel, INPUT_PULLUP);
   #if Dryrun_Enable
@@ -92,14 +236,19 @@ void setup()
   pinMode(motor_1_off, OUTPUT);
   pinMode(motor_1_on, OUTPUT);
   pinMode(motor_2, OUTPUT);
-  pinMode(plantrelay_1, OUTPUT);
-  pinMode(plantrelay_2, OUTPUT);
+  pinMode(home_irrigation, OUTPUT);
+  pinMode(garden_irrigation, OUTPUT);
 
   digitalWrite(motor_2, relayoff);
   digitalWrite(motor_1_on, relayoff);
   digitalWrite(motor_1_off, relayoff);
-  digitalWrite(plantrelay_1, relayoff);
-  digitalWrite(plantrelay_2, relayoff);
+  digitalWrite(home_irrigation, relayoff);
+  digitalWrite(garden_irrigation, relayoff);
+  client.publish(STATE_MOTOR1,"off");
+  client.publish(STATE_MOTOR2,"off");
+  client.publish(STATE_IRR_HOME,"off");
+  client.publish(STATE_IRR_GARDEN,"off");
+
 
   if (!rtc.begin())
   {
@@ -119,7 +268,12 @@ void loop()
 
   // Print Time
   // Serial.print(now.hour());Serial.print(":");Serial.println(now.minute());
-
+  
+  if (!client.connected())  // Reconnect to MQTT
+    {
+      reconnect();
+    }
+    client.loop();
   #if voltage_sensing_enable
     emon1.calcVI(20,2000);                // Calculate all. No.of half wavelengths (crossings), time-out  
     float supplyVoltage = emon1.Vrms;     //extract Vrms into Variable
@@ -136,8 +290,10 @@ void loop()
     {
       Serial.println("motor_2 ON when sump level is high");
       motor_1_offstate();
+      client.publish(STATE_MOTOR1,"off");
       delay(1000);
       digitalWrite(motor_2, relayon);
+      client.publish(STATE_MOTOR2,"on");
       #if Dryrun_Enable
         start_time = millis();
       #endif
@@ -154,8 +310,10 @@ void loop()
     {
       Serial.println("motor_2 OFF when sumplevel is low & motor_1 ON");
       digitalWrite(motor_2, relayoff);
+      client.publish(STATE_MOTOR2,"off");
       delay(2000);
       motor_1_onstate();
+      client.publish(STATE_MOTOR1,"on");
       #if Dryrun_Enable
         start_time = millis();
       #endif
@@ -196,6 +354,8 @@ void loop()
       Serial.println("motor_2 & motor_1 OFF when tank fills");
       digitalWrite(motor_2, relayoff);
       motor_1_offstate();
+      client.publish(STATE_MOTOR2,"off");
+      client.publish(STATE_MOTOR1,"off");
       var_motor_1 = false;
       var_motor_2 = false;
     }
@@ -206,6 +366,7 @@ void loop()
   {
     Serial.println("motor_2 OFF when sumplevel is low");
     digitalWrite(motor_2, relayoff);
+    client.publish(STATE_MOTOR2,"off");
     var_motor_2 = false;
   }
 
@@ -247,19 +408,25 @@ void loop()
     if (((now.hour() >= 18) || (now.hour() <= 7)) && (!plant_irrigation) && (soil_moisture_low())) // time should be changed without interupting the recurring motor timer
     {
       Serial.println("Plant Irrigation Turned On");
-      digitalWrite(plantrelay_1, relayon); // turn on irrigation.
+      digitalWrite(home_irrigation, relayon); // turn on irrigation.
+      digitalWrite(garden_irrigation, relayon);
+      client.publish(STATE_IRR_HOME,"on");
+      client.publish(STATE_IRR_GARDEN,"on");
       plant_irrigation = true;
     }
     else if ((plant_irrigation) && (!((now.hour() >= 18) || (now.hour() <= 7))))
     {
       Serial.println("Plant Irrigation Turned Off");
-      digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
+      digitalWrite(home_irrigation, relayoff); // turn off irrigation.
+      digitalWrite(garden_irrigation, relayoff);
+      client.publish(STATE_IRR_HOME,"off");
+      client.publish(STATE_IRR_GARDEN,"off");
       plant_irrigation = false;
     }
     else if (!soil_moisture_low()) // used to turn off the irrigation, after it is turned on. when it is Raining.
     {
       Serial.println("Plant Irrigation Turned Off Due to Wet Soil");
-      digitalWrite(plantrelay_1, relayoff); // turn off irrigation.
+      digitalWrite(home_irrigation, relayoff); // turn off irrigation.
       plant_irrigation = false;
     }
   #endif
@@ -279,7 +446,8 @@ bool soil_moisture_low() // Function to check soil moisture
 }
 
 
-// Todo : complete soil moisture mesurement
+// Todo1 : complete soil moisture mesurement
+// Todo2 : Add Manual override switch in mobile app with local wifi support.
  
 
 // Testing.
@@ -289,3 +457,4 @@ bool soil_moisture_low() // Function to check soil moisture
 // * Plant irrigation --- OK
 // * Plant irrigation with moisture sensor --- yet to check
 // * Dryrun protection --- yet to check
+// * Home Assistance Integration --- yet to check
