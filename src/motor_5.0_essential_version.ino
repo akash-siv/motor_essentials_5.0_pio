@@ -22,15 +22,15 @@
 // #include <ArduinoJson.h>
 
 // WiFi Network Credentials
-const char *ssid = "goldenbriquette";   // name of your WiFi network
-const char *password = "9840782066"; // password of the WiFi network
+const char *ssid = "NETGEAR_EXT";   // name of your WiFi network
+const char *password = ""; // password of the WiFi network
 
 // Home Assistant Credentials
 const char *HA_USER = "akash";
 const char *HA_PASS = "*^7KNF!7fsSnPq";
 
 // -------------------   MQTT Network
-IPAddress broker(192,168,0,139); // IP address of your MQTT broker eg. 192.168.1.50
+IPAddress broker(192,168,1,128); // IP address of your MQTT broker eg. 192.168.1.50
 const byte LIGHT_PIN = 2;           // Pin to control the light with
 const char *ID = "motor_core";  // Name of our device, must be unique
 const char *MOTOR1 = "home/motor1";  // Topic to subcribe to
@@ -112,11 +112,14 @@ void callback(char* topic, byte* payload, unsigned int length)
       {
         motor_1_onstate();
         client.publish(STATE_MOTOR1,"on");
+        var_motor_1 = true;
+        
       }
     else if(response == "off")  // Turn the light off
     {
       motor_1_offstate();
       client.publish(STATE_MOTOR1,"off");
+      var_motor_1 = false;
     }
   }
 
@@ -125,11 +128,13 @@ void callback(char* topic, byte* payload, unsigned int length)
       {
         digitalWrite(motor_2, relayon);
         client.publish(STATE_MOTOR2,"on");
+        var_motor_2 = true;
       }
     else if(response == "off")  // Turn the light off
     {
       digitalWrite(motor_2, relayoff);
       client.publish(STATE_MOTOR2,"off");
+      var_motor_2 = false;
     }
   }
 
@@ -448,6 +453,7 @@ bool soil_moisture_low() // Function to check soil moisture
 
 // Todo1 : complete soil moisture mesurement
 // Todo2 : Add Manual override switch in mobile app with local wifi support.
+// Todo3 : Log Sensor data to home assistant with discovery
  
 
 // Testing.
