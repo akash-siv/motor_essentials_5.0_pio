@@ -16,10 +16,11 @@
 #include <RTClib.h>
 #include <esp_task_wdt.h>
 #include "EmonLib.h"
+#include "DHT.h"
 // for home assistance
 #include <WiFi.h>
 #include <PubSubClient.h>
-// #include <ArduinoJson.h>
+#include <ArduinoJson.h>
 
 // WiFi Network Credentials
 const char *ssid = "NETGEAR_EXT";   // name of your WiFi network
@@ -65,9 +66,12 @@ PubSubClient client(wclient); // Setup MQTT client
 #define home_irrigation 19
 #define garden_irrigation 18
 #define soilsensor 36 // Input Only  working only on 36 and 39 pin 
-// #define DHT11_PIN 34  // Input Only
+#define DHT11_PIN 34  // Input Only
+#define DHTTYPE DHT11
 #define voltage_threshold 190
 #define soil_threshold 50
+
+DHT dht(DHT11_PIN, DHTTYPE);
 
 // Features .....................
 #define Dryrun_Enable 0          // 1 = DryRun Protection ON || 0 = DryRun Protection OFF
@@ -89,6 +93,19 @@ bool var_motor_2 = false;
 bool plant_irrigation = false;
 bool isdelay = false;
 
+float humidity;
+float temperature;
+int moisture = 0;
+
+int moisture_low = 650;
+int moisture_high = 350;
+int moisturePercentage = 0;
+
+// My own numerical system for registering devices.
+// int sensorNumber = 1;
+String mqttName = "Plant sensor";
+String stateTopic = "home/plants/state";
+
 unsigned long currenttime = 0; //used to turn off the motor after specified time
 unsigned long lock_ontime = 0; // lock the motor until Resting period
 
@@ -102,38 +119,33 @@ void callback(char* topic, byte* payload, unsigned int length)
   for (int i = 0; i < length; i++) {
     response += (char)payload[i];
   }
-  // Serial.print("Message arrived [");
-  // Serial.print(topic);
-  // Serial.print("] ");
-  // Serial.println(response);
 
   if (String(topic) == String(MOTOR1)){
-    if(response == "on")  // Turn the Motor1 on
+    if((response == "on") && (var_motor_1 == false) && (var_motor_2 == false) )  // Turn the Motor1 on
       {
-        motor_1_onstate();
         client.publish(STATE_MOTOR1,"on");
+        motor_1_onstate();
         var_motor_1 = true;
-        
       }
     else if(response == "off")  // Turn the light off
     {
-      motor_1_offstate();
       client.publish(STATE_MOTOR1,"off");
+      motor_1_offstate();
       var_motor_1 = false;
     }
   }
 
   if (String(topic) == String(MOTOR2)){
-    if(response == "on")  // Turn the Motor1 on
+    if((response == "on") && (var_motor_1 == false) && (var_motor_2 == false))  // Turn the Motor1 on
       {
-        digitalWrite(motor_2, relayon);
         client.publish(STATE_MOTOR2,"on");
+        digitalWrite(motor_2, relayon);
         var_motor_2 = true;
       }
     else if(response == "off")  // Turn the light off
     {
-      digitalWrite(motor_2, relayoff);
       client.publish(STATE_MOTOR2,"off");
+      digitalWrite(motor_2, relayoff);
       var_motor_2 = false;
     }
   }
@@ -141,24 +153,24 @@ void callback(char* topic, byte* payload, unsigned int length)
   if (String(topic) == String(IRR_HOME)){
     if(response == "on")  // Turn the Motor1 on
       {
+        client.publish(STATE_IRR_HOME,"on");
         digitalWrite(home_irrigation, relayon); // turn on irrigation.
         plant_irrigation = true;
-        client.publish(STATE_IRR_HOME,"on");
       }
     else if(response == "off")  // Turn the light off
     {
+      client.publish(STATE_IRR_HOME,"off");
       digitalWrite(home_irrigation, relayoff); // turn on irrigation.
-        plant_irrigation = false;
-        client.publish(STATE_IRR_HOME,"off");
+      plant_irrigation = false;
     }
   }
 
   if (String(topic) == String(IRR_GARDEN)){
     if(response == "on")  // Turn the Motor1 on
       {
+        client.publish(STATE_IRR_GARDEN,"on");
         digitalWrite(garden_irrigation, relayon); // turn on irrigation.
         plant_irrigation = true;
-        client.publish(STATE_IRR_GARDEN,"on");
       }
     else if(response == "off")  // Turn the light off
     {
@@ -199,6 +211,11 @@ void reconnect()
       client.subscribe(MOTOR2);
       client.subscribe(IRR_HOME);
       client.subscribe(IRR_GARDEN);
+
+      sendMQTTTemperatureDiscoveryMsg();
+      sendMQTTHumidityDiscoveryMsg();
+      sendMQTTMoistureDiscoveryMsg();
+
       Serial.println("connected");
     }
     else {
@@ -215,11 +232,12 @@ void setup()
   Serial.begin(115200);
   delay(5000);
   Serial.println("\nBooting........\n");
+  dht.begin();
   setup_wifi(); // Connect to network
   client.setServer(broker, 1883);
   client.setCallback(callback);// Initialize the callback routine
 
-  pinMode(sumplevel, INPUT_PULLUP);
+  
   #if Dryrun_Enable
   pinMode(dryrun, INPUT_PULLUP);
   #endif
@@ -238,6 +256,7 @@ void setup()
   #endif
   pinMode(tankhigh, INPUT_PULLUP);
   pinMode(tanklow, INPUT_PULLUP);
+  pinMode(sumplevel, INPUT_PULLUP);
   pinMode(motor_1_off, OUTPUT);
   pinMode(motor_1_on, OUTPUT);
   pinMode(motor_2, OUTPUT);
@@ -270,10 +289,11 @@ void loop()
   // Reset the the timer or the controller will get reset
   esp_task_wdt_reset();
   DateTime now = rtc.now();
-
   // Print Time
   // Serial.print(now.hour());Serial.print(":");Serial.println(now.minute());
   
+  publishSensorData();
+
   if (!client.connected())  // Reconnect to MQTT
     {
       reconnect();
@@ -432,6 +452,8 @@ void loop()
     {
       Serial.println("Plant Irrigation Turned Off Due to Wet Soil");
       digitalWrite(home_irrigation, relayoff); // turn off irrigation.
+      client.publish(STATE_IRR_HOME,"off");
+      client.publish(STATE_IRR_GARDEN,"off");
       plant_irrigation = false;
     }
   #endif
@@ -450,10 +472,91 @@ bool soil_moisture_low() // Function to check soil moisture
   #endif
 }
 
+void publishSensorData() {
+    humidity = dht.readHumidity();
+    temperature = dht.readTemperature();
+    moisture = analogRead(soilsensor);
+
+    if (isnan(humidity)) {
+      humidity = 0;
+    }
+
+    if (isnan(temperature)) {
+      temperature = 0;
+    }
+
+    // Map moisture sensor values to a percentage value
+    moisturePercentage = map(moisture, moisture_low, moisture_high, 0, 100);
+
+    DynamicJsonDocument doc(1024);
+    char buffer[256];
+
+    doc["humidity"] = humidity;
+    doc["temperature"]   = temperature;
+    doc["moisture"] = moisturePercentage;
+
+    size_t n = serializeJson(doc, buffer);
+
+    bool published = client.publish(stateTopic.c_str(), buffer, n);
+
+}
+
+void sendMQTTTemperatureDiscoveryMsg() {
+  String discoveryTopic = "homeassistant/sensor/plant_sensor_/temperature/config";
+
+  DynamicJsonDocument doc(1024);
+  char buffer[256];
+
+  doc["name"] = "Plant Temperature";
+  doc["stat_t"]   = stateTopic;
+  doc["unit_of_meas"] = "°C";
+  doc["dev_cla"] = "temperature";
+  doc["frc_upd"] = true;
+  doc["val_tpl"] = "{{ value_json.temperature|default(0) }}";
+
+  size_t n = serializeJson(doc, buffer);
+
+  client.publish(discoveryTopic.c_str(), buffer, n);
+}
+
+void sendMQTTHumidityDiscoveryMsg() {
+  String discoveryTopic = "homeassistant/sensor/plant_sensor_/humidity/config";
+
+  DynamicJsonDocument doc(1024);
+  char buffer[256];
+
+  doc["name"] = "Plant Humidity";
+  doc["stat_t"]   = stateTopic;
+  doc["unit_of_meas"] = "%";
+  doc["dev_cla"] = "humidity";
+  doc["frc_upd"] = true;
+  doc["val_tpl"] = "{{ value_json.humidity|default(0) }}";
+
+  size_t n = serializeJson(doc, buffer);
+
+  client.publish(discoveryTopic.c_str(), buffer, n);
+}
+
+void sendMQTTMoistureDiscoveryMsg() {
+  String discoveryTopic = "homeassistant/sensor/plant_sensor_/moisture/config";
+
+  DynamicJsonDocument doc(1024);
+  char buffer[256];
+
+  doc["name"] = "Plant Moisture";
+  doc["stat_t"]   = stateTopic;
+  doc["frc_upd"] = true;
+  doc["val_tpl"] = "{{ value_json.moisture|default(0) }}";
+
+  size_t n = serializeJson(doc, buffer);
+
+  client.publish(discoveryTopic.c_str(), buffer, n);
+}
 
 // Todo1 : complete soil moisture mesurement
 // Todo2 : Add Manual override switch in mobile app with local wifi support.
 // Todo3 : Log Sensor data to home assistant with discovery
+// Todo4 : Change the dht pin 34, it is showing error.
  
 
 // Testing.
